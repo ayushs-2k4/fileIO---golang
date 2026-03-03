@@ -21,7 +21,7 @@ func NewBuffer(filename string) (*Buffer, error) {
 
 	return &Buffer{
 		writer: file,
-		data:   nil,
+		data:   make([]byte, 0, MaxSize),
 	}, nil
 }
 
