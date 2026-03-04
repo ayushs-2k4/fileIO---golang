@@ -3,8 +3,12 @@ package main
 import (
 	"fileIO/writer"
 	"fmt"
+	"io"
 	"testing"
 	"time"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func BenchmarkEncoderWriter(b *testing.B) {
@@ -180,4 +184,133 @@ func TestJSONEncoderMethodAllocs(t *testing.T) {
 		e := NewJSONEncoder()
 		e.Encode(rec) //nolint:errcheck
 	}))
+}
+
+func BenchmarkMyLogger10Fields(b *testing.B) {
+	writer := &writer.DiscardWriter{}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		record := Record{
+			Message: "test message",
+			Level:   Info,
+			KVs: []KV{
+				AddString("field1", "value1"),
+				AddString("field2", "value2"),
+				AddString("field3", "value3"),
+				AddString("field4", "value4"),
+				AddString("field5", "value5"),
+				AddString("field6", "value6"),
+				AddString("field7", "value7"),
+				AddString("field8", "value8"),
+				AddString("field9", "value9"),
+				AddInt("field10", 42),
+			},
+		}
+		jsonEncoder := _jsonPOOL.Get().(*JSONEncoder)
+
+		data, _ := jsonEncoder.Encode(record)
+
+		writer.Write(data)
+
+		_jsonPOOL.Put(jsonEncoder)
+	}
+}
+
+func BenchmarkMyLogger10FieldsCreatingOnce(b *testing.B) {
+	writer := &writer.DiscardWriter{}
+
+	b.ResetTimer()
+
+	record := Record{
+		Message: "test message",
+		Level:   Info,
+		KVs: []KV{
+			AddString("field1", "value1"),
+			AddString("field2", "value2"),
+			AddString("field3", "value3"),
+			AddString("field4", "value4"),
+			AddString("field5", "value5"),
+			AddString("field6", "value6"),
+			AddString("field7", "value7"),
+			AddString("field8", "value8"),
+			AddString("field9", "value9"),
+			AddInt("field10", 42),
+		},
+	}
+
+	for i := 0; i < b.N; i++ {
+		jsonEncoder := _jsonPOOL.Get().(*JSONEncoder)
+
+		data, _ := jsonEncoder.Encode(record)
+
+		writer.Write(data)
+
+		_jsonPOOL.Put(jsonEncoder)
+	}
+}
+
+func BenchmarkZap10Fields(b *testing.B) {
+	encoderCfg := zap.NewProductionEncoderConfig()
+
+	encoder := zapcore.NewJSONEncoder(encoderCfg)
+
+	core := zapcore.NewCore(
+		encoder,
+		zapcore.AddSync(io.Discard),
+		zap.InfoLevel,
+	)
+
+	logger := zap.New(core)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		logger.Info("test message",
+			zap.String("field1", "value1"),
+			zap.String("field2", "value2"),
+			zap.String("field3", "value3"),
+			zap.String("field4", "value4"),
+			zap.String("field5", "value5"),
+			zap.String("field6", "value6"),
+			zap.String("field7", "value7"),
+			zap.String("field8", "value8"),
+			zap.String("field9", "value9"),
+			zap.Int("field10", 42),
+		)
+	}
+}
+
+func BenchmarkZap10FieldsCreatingOnce(b *testing.B) {
+	encoderCfg := zap.NewProductionEncoderConfig()
+
+	encoder := zapcore.NewJSONEncoder(encoderCfg)
+
+	core := zapcore.NewCore(
+		encoder,
+		zapcore.AddSync(io.Discard),
+		zap.InfoLevel,
+	)
+
+	logger := zap.New(core)
+
+	fields := []zap.Field{
+		zap.String("field1", "value1"),
+		zap.String("field2", "value2"),
+		zap.String("field3", "value3"),
+		zap.String("field4", "value4"),
+		zap.String("field5", "value5"),
+		zap.String("field6", "value6"),
+		zap.String("field7", "value7"),
+		zap.String("field8", "value8"),
+		zap.String("field9", "value9"),
+		zap.Int("field10", 42),
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		logger.Info("test message", fields...)
+	}
 }
