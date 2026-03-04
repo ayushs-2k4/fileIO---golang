@@ -9,8 +9,18 @@ import (
 	"time"
 )
 
+type Level int
+
+const (
+	Debug Level = iota
+	Error
+	Warn
+	Info
+)
+
 type Record struct {
 	Message string
+	Level   Level
 	KVs     []KV
 }
 
@@ -71,6 +81,7 @@ func main() {
 			defer wg.Done()
 			record := Record{
 				Message: "Ayush Singhal, " + strconv.Itoa(i),
+				Level:   Warn,
 				KVs: []KV{
 					AddString("my-key", "my-value"),
 					AddString("my-key-2", "my-value-2"),

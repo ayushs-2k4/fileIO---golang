@@ -27,6 +27,7 @@ const (
 	TabCharacter     = '\t'
 	CommaCharacter   = ','
 	MessageKey       = "message"
+	LevelKey         = "level"
 )
 
 func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
@@ -39,11 +40,19 @@ func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
 		valType: reflect.String,
 	})
 
+	j.addCharacter(CommaCharacter)
+	j.addCharacter(NewLineCharacter)
+	j.addTabs()
+	j.addKeyValue(LevelKey, Value{
+		val:     getLevelString(rec.Level),
+		valType: reflect.String,
+	})
+
 	for _, kv := range rec.KVs {
-		j.b = append(j.b, CommaCharacter)
 		key := kv.Key
 		val := kv.Value
 
+		j.addCharacter(CommaCharacter)
 		j.addCharacter(NewLineCharacter)
 		j.addTabs()
 
@@ -79,6 +88,21 @@ func (j *JSONEncoder) addKeyValue(key string, value Value) {
 		j.addStruct(value.val)
 	}
 
+}
+
+func getLevelString(level Level) string {
+	switch level {
+	case Error:
+		return "ERROR"
+	case Warn:
+		return "WARN"
+	case Debug:
+		return "DEBUG"
+	case Info:
+		return "INFO"
+	}
+
+	return "N/A"
 }
 
 func (j *JSONEncoder) addTabs() {
