@@ -34,12 +34,22 @@ func AddString(key string, value string) KV {
 	}
 }
 
-func AddInt(key string, value int) KV {
+func AddInt(key string, value int64) KV {
 	return KV{
 		Key: key,
 		Value: &Value{
 			val:     value,
-			valType: reflect.Int,
+			valType: reflect.Int64,
+		},
+	}
+}
+
+func AddStruct(key string, value any) KV {
+	return KV{
+		Key: key,
+		Value: &Value{
+			val:     value,
+			valType: reflect.Struct,
 		},
 	}
 }
@@ -65,6 +75,11 @@ func main() {
 					AddString("my-key", "my-value"),
 					AddString("my-key-2", "my-value-2"),
 					AddInt("my-int-key", 34),
+					AddStruct("my-struct-key", MyStruct{
+						Name:   "Ayush",
+						Age:    22,
+						MyInfo: MyInfo{Gender: "Male"},
+					}),
 				},
 			}
 			jsonEncoder := _jsonPOOL.Get().(*JSONEncoder)
@@ -80,4 +95,14 @@ func main() {
 	fmt.Println(time.Since(st))
 
 	multiWriter.Close()
+}
+
+type MyStruct struct {
+	Name   string
+	Age    int64
+	MyInfo MyInfo
+}
+
+type MyInfo struct {
+	Gender string
 }

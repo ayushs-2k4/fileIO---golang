@@ -11,37 +11,41 @@ var _jsonPOOL = sync.Pool{New: func() any {
 }}
 
 type JSONEncoder struct {
-	b []byte
+	currentLevel int
+	b            []byte
 }
 
 func NewJSONEncoder() *JSONEncoder {
 	return &JSONEncoder{
-		b: make([]byte, 0, 1024),
+		currentLevel: 0,
+		b:            make([]byte, 0, 1024),
 	}
 }
 
 const (
 	NewLineCharacter = '\n'
 	TabCharacter     = '\t'
+	CommaCharacter   = ','
 	MessageKey       = "message"
 )
 
 func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
 	j.b = append(j.b, '{')
 	j.addCharacter(NewLineCharacter)
-	j.addCharacter(TabCharacter)
+	j.currentLevel++
+	j.addTabs()
 	j.addKeyValue(MessageKey, Value{
 		val:     rec.Message,
 		valType: reflect.String,
 	})
 
 	for _, kv := range rec.KVs {
-		j.b = append(j.b, ',')
+		j.b = append(j.b, CommaCharacter)
 		key := kv.Key
 		val := kv.Value
 
 		j.addCharacter(NewLineCharacter)
-		j.addCharacter(TabCharacter)
+		j.addTabs()
 
 		j.addKeyValue(key, *val)
 
@@ -49,9 +53,10 @@ func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
 
 	j.addCharacter(NewLineCharacter)
 	j.b = append(j.b, '}')
+	j.currentLevel--
 
 	res := j.b
-	j.b = j.b[:0]
+	j.reset()
 
 	return res, nil
 }
@@ -68,10 +73,18 @@ func (j *JSONEncoder) addKeyValue(key string, value Value) {
 	switch value.valType {
 	case reflect.String:
 		j.addString(value.val.(string))
-	case reflect.Int:
-		j.addInt(value.val.(int))
+	case reflect.Int64:
+		j.addInt(value.val.(int64))
+	case reflect.Struct:
+		j.addStruct(value.val)
 	}
 
+}
+
+func (j *JSONEncoder) addTabs() {
+	for i := 0; i < j.currentLevel; i++ {
+		j.addCharacter(TabCharacter)
+	}
 }
 
 func (j *JSONEncoder) addString(str string) {
@@ -80,6 +93,60 @@ func (j *JSONEncoder) addString(str string) {
 	j.b = append(j.b, '"')
 }
 
-func (j *JSONEncoder) addInt(val int) {
-	j.b = strconv.AppendInt(j.b, int64(val), 10)
+func (j *JSONEncoder) addInt(val int64) {
+	j.b = strconv.AppendInt(j.b, val, 10)
+}
+
+func (j *JSONEncoder) addStruct(value any) {
+	val := reflect.ValueOf(value)
+	typ := reflect.TypeOf(value)
+
+	j.addCharacter('{')
+	j.currentLevel++
+
+	for i := 0; i < val.NumField(); i++ {
+		fieldVal := val.Field(i)
+		fieldTyp := typ.Field(i)
+
+		if !fieldTyp.IsExported() {
+			continue
+		}
+
+		j.addCharacter(NewLineCharacter)
+		j.addTabs()
+
+		switch fieldVal.Kind() {
+		case reflect.String:
+			j.addKeyValue(fieldTyp.Name, Value{
+				val:     fieldVal.String(),
+				valType: reflect.String,
+			})
+
+		case reflect.Int64:
+			j.addKeyValue(fieldTyp.Name, Value{
+				val:     fieldVal.Int(),
+				valType: reflect.Int64,
+			})
+
+		case reflect.Struct:
+			j.addKeyValue(fieldTyp.Name, Value{
+				val:     fieldVal.Interface(),
+				valType: reflect.Struct,
+			})
+		}
+
+		if i < val.NumField()-1 {
+			j.addCharacter(CommaCharacter)
+		}
+	}
+
+	j.addCharacter(NewLineCharacter)
+	j.currentLevel--
+	j.addTabs()
+	j.addCharacter('}')
+}
+
+func (j *JSONEncoder) reset() {
+	j.b = j.b[:0]
+	j.currentLevel = 0
 }
