@@ -35,7 +35,16 @@ func main() {
 			defer wg.Done()
 			record := Record{
 				Message: "Ayush Singhal, " + strconv.Itoa(i),
-				KVs:     nil,
+				KVs: []KV{
+					{
+						Key:   "my-key",
+						Value: "my-value",
+					},
+					{
+						Key:   "my-key-2",
+						Value: "my-value-2",
+					},
+				},
 			}
 			jsonEncoder := _jsonPOOL.Get().(*JSONEncoder)
 			encodedData, _ := jsonEncoder.Encode(record)

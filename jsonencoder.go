@@ -1,6 +1,8 @@
 package main
 
-import "sync"
+import (
+	"sync"
+)
 
 var _jsonPOOL = sync.Pool{New: func() any {
 	return NewJSONEncoder()
@@ -19,14 +21,26 @@ func NewJSONEncoder() *JSONEncoder {
 const (
 	NewLineCharacter = '\n'
 	TabCharacter     = '\t'
+	MessageKey       = "message"
 )
 
 func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
 	j.b = append(j.b, '{')
-	j.b = append(j.b, NewLineCharacter)
-	j.b = append(j.b, TabCharacter)
-	j.addKeyValue("message", rec.Message)
-	j.b = append(j.b, NewLineCharacter)
+	j.addCharacter(NewLineCharacter)
+	j.addCharacter(TabCharacter)
+	j.addKeyValue(MessageKey, rec.Message)
+
+	for _, kv := range rec.KVs {
+		key := kv.Key
+		val := kv.Value
+
+		j.addCharacter(NewLineCharacter)
+		j.addCharacter(TabCharacter)
+
+		j.addKeyValue(key, val.(string))
+	}
+
+	j.addCharacter(NewLineCharacter)
 	j.b = append(j.b, '}')
 
 	res := j.b
@@ -35,13 +49,15 @@ func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
 	return res, nil
 }
 
-func (j *JSONEncoder) addKeyValue(key string, value string) {
+func (j *JSONEncoder) addCharacter(c rune) {
+	j.b = append(j.b, byte(c))
+}
 
+func (j *JSONEncoder) addKeyValue(key string, value string) {
 	j.addString(key)
 	j.b = append(j.b, ':')
 	j.b = append(j.b, ' ')
 	j.addString(value)
-
 }
 
 func (j *JSONEncoder) addString(str string) {
