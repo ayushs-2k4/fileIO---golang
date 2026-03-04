@@ -23,7 +23,7 @@ func main() {
 			data := "\nAyush Singhal, " + strconv.Itoa(i)
 			jsonEncoder := _jsonPOOL.Get().(*JSONEncoder)
 			encodedData, _ := jsonEncoder.Encode(data)
-			fileWriter.Log(encodedData)
+			fileWriter.Write(encodedData)
 			_jsonPOOL.Put(jsonEncoder)
 		}()
 	}

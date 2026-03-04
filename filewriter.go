@@ -45,7 +45,7 @@ func (f *FileWriter) run() {
 	close(f.done)
 }
 
-func (f *FileWriter) Log(b []byte) {
+func (f *FileWriter) Write(b []byte) {
 	f.ch <- b
 }
 

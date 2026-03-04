@@ -1,6 +1,6 @@
 package main
 
-type Logger interface {
-	Log(b []byte)
+type Writer interface {
+	Write(b []byte)
 	Close()
 }
