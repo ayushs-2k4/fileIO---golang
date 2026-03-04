@@ -36,7 +36,8 @@ const (
 )
 
 const (
-	shouldPrettify = true
+	shouldPrettify      = true
+	shouldAddCallerInfo = true
 )
 
 func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
@@ -59,13 +60,15 @@ func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
 	j.b = time.Now().UTC().AppendFormat(j.b, time.RFC3339Nano)
 	j.addCharacter('"')
 
-	j.addCharacter(CommaCharacter)
-	j.addNewLine()
-	j.addTabs()
-	j.addKey(CallerKey)
-	j.addCharacter('"')
-	j.addRawCaller()
-	j.addCharacter('"')
+	if shouldAddCallerInfo {
+		j.addCharacter(CommaCharacter)
+		j.addNewLine()
+		j.addTabs()
+		j.addKey(CallerKey)
+		j.addCharacter('"')
+		j.addRawCaller()
+		j.addCharacter('"')
+	}
 
 	for _, kv := range rec.KVs {
 		key := kv.Key
