@@ -11,6 +11,8 @@ import (
 func main() {
 	filename := "my-file.txt"
 	fileWriter := writer.NewFileWriter(filename)
+	consoleWriter := writer.NewConsoleWriter()
+	multiWriter := writer.NewMultiWriter(fileWriter, consoleWriter)
 
 	st := time.Now()
 
@@ -24,7 +26,7 @@ func main() {
 			data := "\nAyush Singhal, " + strconv.Itoa(i)
 			jsonEncoder := _jsonPOOL.Get().(*JSONEncoder)
 			encodedData, _ := jsonEncoder.Encode(data)
-			fileWriter.Write(encodedData)
+			multiWriter.Write(encodedData)
 			_jsonPOOL.Put(jsonEncoder)
 		}()
 	}
@@ -33,5 +35,5 @@ func main() {
 
 	fmt.Println(time.Since(st))
 
-	fileWriter.Close()
+	multiWriter.Close()
 }
