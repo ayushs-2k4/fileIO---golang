@@ -30,9 +30,13 @@ const (
 	LevelKey         = "level"
 )
 
+const (
+	shouldPrettify = false
+)
+
 func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
 	j.b = append(j.b, '{')
-	j.addCharacter(NewLineCharacter)
+	j.addNewLine()
 	j.currentLevel++
 	j.addTabs()
 	j.addKeyValue(MessageKey, Value{
@@ -41,7 +45,7 @@ func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
 	})
 
 	j.addCharacter(CommaCharacter)
-	j.addCharacter(NewLineCharacter)
+	j.addNewLine()
 	j.addTabs()
 	j.addKeyValue(LevelKey, Value{
 		val:     getLevelString(rec.Level),
@@ -53,14 +57,14 @@ func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
 		val := kv.Value
 
 		j.addCharacter(CommaCharacter)
-		j.addCharacter(NewLineCharacter)
+		j.addNewLine()
 		j.addTabs()
 
 		j.addKeyValue(key, *val)
 
 	}
 
-	j.addCharacter(NewLineCharacter)
+	j.addNewLine()
 	j.b = append(j.b, '}')
 	j.currentLevel--
 
@@ -70,6 +74,20 @@ func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
 	return res, nil
 }
 
+func (j *JSONEncoder) addNewLine() {
+	if shouldPrettify {
+		j.addCharacter(NewLineCharacter)
+	}
+}
+
+func (j *JSONEncoder) addTabs() {
+	if shouldPrettify {
+		for i := 0; i < j.currentLevel; i++ {
+			j.addCharacter(TabCharacter)
+		}
+	}
+}
+
 func (j *JSONEncoder) addCharacter(c rune) {
 	j.b = append(j.b, byte(c))
 }
@@ -77,7 +95,9 @@ func (j *JSONEncoder) addCharacter(c rune) {
 func (j *JSONEncoder) addKeyValue(key string, value Value) {
 	j.addString(key)
 	j.b = append(j.b, ':')
-	j.b = append(j.b, ' ')
+	if shouldPrettify {
+		j.b = append(j.b, ' ')
+	}
 
 	switch value.valType {
 	case reflect.String:
@@ -105,12 +125,6 @@ func getLevelString(level Level) string {
 	return "N/A"
 }
 
-func (j *JSONEncoder) addTabs() {
-	for i := 0; i < j.currentLevel; i++ {
-		j.addCharacter(TabCharacter)
-	}
-}
-
 func (j *JSONEncoder) addString(str string) {
 	j.b = append(j.b, '"')
 	j.b = append(j.b, str...)
@@ -136,7 +150,7 @@ func (j *JSONEncoder) addStruct(value any) {
 			continue
 		}
 
-		j.addCharacter(NewLineCharacter)
+		j.addNewLine()
 		j.addTabs()
 
 		switch fieldVal.Kind() {
@@ -164,7 +178,7 @@ func (j *JSONEncoder) addStruct(value any) {
 		}
 	}
 
-	j.addCharacter(NewLineCharacter)
+	j.addNewLine()
 	j.currentLevel--
 	j.addTabs()
 	j.addCharacter('}')
