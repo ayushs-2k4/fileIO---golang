@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"time"
 )
 
 var _jsonPOOL = sync.Pool{New: func() any {
@@ -28,10 +29,11 @@ const (
 	CommaCharacter   = ','
 	MessageKey       = "message"
 	LevelKey         = "level"
+	TimeStampKey     = "timestamp"
 )
 
 const (
-	shouldPrettify = false
+	shouldPrettify = true
 )
 
 func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
@@ -50,6 +52,14 @@ func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
 	j.addKeyValue(LevelKey, Value{
 		val:     getLevelString(rec.Level),
 		valType: reflect.String,
+	})
+
+	j.addCharacter(CommaCharacter)
+	j.addNewLine()
+	j.addTabs()
+	j.addKeyValue(TimeStampKey, Value{
+		val:     time.Now().UnixMilli(),
+		valType: reflect.Int64,
 	})
 
 	for _, kv := range rec.KVs {
