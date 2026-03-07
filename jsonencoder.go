@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"path"
 	"reflect"
 	"runtime"
@@ -130,15 +131,22 @@ func (j *JSONEncoder) addCharacter(c rune) {
 func (j *JSONEncoder) addKeyValue(kv KV) {
 	j.addKey(kv.Key)
 
-	switch kv.Value.ValType {
-	case StringType:
-		j.addString(kv.Value.String)
-	case Int64Type:
-		j.addInt(kv.Value.Int)
-	case StructType:
-		j.addStruct(kv.Value.Interface)
-	}
+	j.addValue(kv.Value)
+}
 
+func (j *JSONEncoder) addValue(v Value) {
+	switch v.ValType {
+	case StringType:
+		j.addString(v.String)
+	case IntType, Int32Type, Int64Type:
+		j.addInt(v.Int)
+	case Float32Type:
+		j.addFloat(float64(math.Float32frombits(uint32(v.Int))))
+	case Float64Type:
+		j.addFloat(math.Float64frombits(uint64(v.Int)))
+	case StructType:
+		j.addStruct(v.Interface)
+	}
 }
 
 func (j *JSONEncoder) addKey(key string) {
@@ -174,6 +182,10 @@ func (j *JSONEncoder) addInt(val int64) {
 	j.b = strconv.AppendInt(j.b, val, 10)
 }
 
+func (j *JSONEncoder) addFloat(val float64) {
+	j.b = strconv.AppendFloat(j.b, val, 'f', -1, 64)
+}
+
 func (j *JSONEncoder) addStruct(value any) {
 	val := reflect.ValueOf(value)
 	typ := reflect.TypeOf(value)
@@ -196,8 +208,11 @@ func (j *JSONEncoder) addStruct(value any) {
 		case reflect.String:
 			j.addKeyValue(AddString(fieldTyp.Name, fieldVal.String()))
 
-		case reflect.Int64:
-			j.addKeyValue(AddInt(fieldTyp.Name, fieldVal.Int()))
+		case reflect.Int, reflect.Int32, reflect.Int64:
+			j.addKeyValue(AddInt64(fieldTyp.Name, fieldVal.Int()))
+
+		case reflect.Float32, reflect.Float64:
+			j.addKeyValue(AddFloat64(fieldTyp.Name, fieldVal.Float()))
 
 		case reflect.Struct:
 			j.addKeyValue(AddStruct(fieldTyp.Name, fieldVal.Interface()))

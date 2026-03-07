@@ -3,6 +3,7 @@ package main
 import (
 	"fileIO/writer"
 	"fmt"
+	"math"
 	"strconv"
 	"sync"
 	"time"
@@ -40,7 +41,10 @@ type ValueType uint8
 const (
 	StringType = iota
 	IntType
+	Int32Type
 	Int64Type
+	Float32Type
+	Float64Type
 	StructType
 )
 
@@ -54,12 +58,52 @@ func AddString(key string, value string) KV {
 	}
 }
 
-func AddInt(key string, value int64) KV {
+func AddInt(key string, value int) KV {
+	return KV{
+		Key: key,
+		Value: Value{
+			Int:     int64(value),
+			ValType: IntType,
+		},
+	}
+}
+
+func AddInt64(key string, value int64) KV {
 	return KV{
 		Key: key,
 		Value: Value{
 			Int:     value,
 			ValType: Int64Type,
+		},
+	}
+}
+
+func AddInt32(key string, value int32) KV {
+	return KV{
+		Key: key,
+		Value: Value{
+			Int:     int64(value),
+			ValType: Int32Type,
+		},
+	}
+}
+
+func AddFloat32(key string, value float32) KV {
+	return KV{
+		Key: key,
+		Value: Value{
+			Int:     int64(math.Float32bits(value)),
+			ValType: Float32Type,
+		},
+	}
+}
+
+func AddFloat64(key string, value float64) KV {
+	return KV{
+		Key: key,
+		Value: Value{
+			Int:     int64(math.Float64bits(value)),
+			ValType: Float64Type,
 		},
 	}
 }
@@ -95,11 +139,71 @@ func main() {
 				KVs: []KV{
 					AddString("my-key", "my-value"),
 					AddString("my-key-2", "my-value-2"),
-					AddInt("my-int-key", 34),
-					AddStruct("my-struct-key", MyStruct{
-						Name:   "Ayush",
-						Age:    22,
-						MyInfo: MyInfo{Gender: "Male"},
+					AddInt64("my-int-key", 34),
+					AddStruct("person", Person{
+						Name: "Ayush Singhal",
+						Age:  22,
+						Contact: ContactInfo{
+							Email: "ayush@example.com",
+							Phone: "+91-9876543210",
+							Social: SocialMedia{
+								Twitter:  "@ayush",
+								LinkedIn: "linkedin.com/in/ayush",
+								Stats: SocialStats{ // level 4
+									Followers: 4200,
+									Posts:     318,
+									Verified:  false,
+								},
+							},
+						},
+						Address: Address{
+							Street:  "42 MG Road",
+							City:    "Bangalore",
+							Country: "India",
+							ZipCode: "560001",
+							Region: Region{ // level 3
+								State:    "Karnataka",
+								TimeZone: "Asia/Kolkata",
+							},
+							Coordinates: Coordinates{ // level 3
+								Latitude:  12.9716,
+								Longitude: 77.5946,
+							},
+						},
+						Employment: Employment{
+							Company:    "Blinkit",
+							Role:       "Software Engineer",
+							Experience: 3,
+							Skills:     []string{"Go", "Distributed Systems", "Kafka"},
+							Manager: Manager{ // level 3
+								Name: "Rahul Sharma",
+								Contact: ContactInfo{ // level 4
+									Email: "rahul@example.com",
+									Phone: "+91-9123456789",
+									Social: SocialMedia{
+										Twitter:  "@rahul",
+										LinkedIn: "linkedin.com/in/rahul",
+										Stats: SocialStats{ // level 5
+											Followers: 12000,
+											Posts:     540,
+											Verified:  true,
+										},
+									},
+								},
+							},
+							Salary: Salary{ // level 3
+								Total:    2500000,
+								Currency: "INR",
+								Breakdown: SalaryBreakdown{ // level 4
+									Base:  2000000,
+									Bonus: 500000,
+									TaxRegion: TaxRegion{ // level 5
+										Code: "IN-KA",
+										Rate: 0.30,
+									},
+								},
+							},
+						},
 					}),
 				},
 			}
@@ -118,12 +222,82 @@ func main() {
 	multiWriter.Close()
 }
 
-type MyStruct struct {
-	Name   string
-	Age    int64
-	MyInfo MyInfo
+type Person struct {
+	Name       string
+	Age        int64
+	Contact    ContactInfo
+	Address    Address
+	Employment Employment
 }
 
-type MyInfo struct {
-	Gender string
+// Level 2
+type ContactInfo struct {
+	Email  string
+	Phone  string
+	Social SocialMedia
+}
+
+type Address struct {
+	Street      string
+	City        string
+	Country     string
+	ZipCode     string
+	Region      Region
+	Coordinates Coordinates
+}
+
+type Employment struct {
+	Company    string
+	Role       string
+	Experience int
+	Skills     []string
+	Manager    Manager
+	Salary     Salary
+}
+
+// Level 3
+type SocialMedia struct {
+	Twitter  string
+	LinkedIn string
+	Stats    SocialStats
+}
+
+type Region struct {
+	State    string
+	TimeZone string
+}
+
+type Coordinates struct {
+	Latitude  float64
+	Longitude float64
+}
+
+type Manager struct {
+	Name    string
+	Contact ContactInfo // reuses ContactInfo — level 3 → 4 via nesting
+}
+
+type Salary struct {
+	Total     float64
+	Currency  string
+	Breakdown SalaryBreakdown
+}
+
+// Level 4
+type SocialStats struct {
+	Followers int64
+	Posts     int64
+	Verified  bool
+}
+
+type SalaryBreakdown struct {
+	Base      float64
+	Bonus     float64
+	TaxRegion TaxRegion
+}
+
+// Level 5
+type TaxRegion struct {
+	Code string
+	Rate float64
 }

@@ -23,11 +23,31 @@ func BenchmarkEncoderWriter(b *testing.B) {
 		KVs: []KV{
 			AddString("my-key", "my-value"),
 			AddString("my-key-2", "my-value-2"),
-			AddInt("my-int-key", 34),
-			AddStruct("my-struct-key", MyStruct{
-				Name:   "Ayush",
-				Age:    22,
-				MyInfo: MyInfo{Gender: "Male"},
+			AddInt64("my-int-key", 34),
+			AddStruct("person", Person{
+				Name: "Ayush Singhal",
+				Age:  22,
+				Contact: ContactInfo{
+					Email: "ayush@example.com",
+					Phone: "+91-9876543210",
+					Social: SocialMedia{
+						Twitter: "@ayush",
+						Stats:   SocialStats{Followers: 4200, Verified: false},
+					},
+				},
+				Employment: Employment{
+					Company: "Blinkit",
+					Role:    "Software Engineer",
+					Salary: Salary{
+						Total:    2500000,
+						Currency: "INR",
+						Breakdown: SalaryBreakdown{
+							Base:      2000000,
+							Bonus:     500000,
+							TaxRegion: TaxRegion{Code: "IN-KA", Rate: 0.30},
+						},
+					},
+				},
 			}),
 		},
 	}
@@ -55,7 +75,7 @@ func BenchmarkEncoder(b *testing.B) {
 		Level:   Warn,
 		KVs: []KV{
 			AddString("my-key", "my-value"),
-			AddInt("my-int-key", 34),
+			AddInt64("my-int-key", 34),
 		},
 	}
 
@@ -78,11 +98,22 @@ func BenchmarkFileWriter(b *testing.B) {
 		KVs: []KV{
 			AddString("my-key", "my-value"),
 			AddString("my-key-2", "my-value-2"),
-			AddInt("my-int-key", 34),
-			AddStruct("my-struct-key", MyStruct{
-				Name:   "Ayush",
-				Age:    22,
-				MyInfo: MyInfo{Gender: "Male"},
+			AddInt64("my-int-key", 34),
+			AddStruct("person", Person{
+				Name: "Ayush Singhal",
+				Age:  22,
+				Contact: ContactInfo{
+					Email: "ayush@example.com",
+					Social: SocialMedia{
+						Twitter: "@ayush",
+						Stats:   SocialStats{Followers: 4200, Verified: false},
+					},
+				},
+				Address: Address{
+					City:    "Bangalore",
+					Country: "India",
+					Region:  Region{State: "Karnataka", TimeZone: "Asia/Kolkata"},
+				},
 			}),
 		},
 	}
@@ -146,7 +177,7 @@ func TestJSONEncoderMethodAllocs(t *testing.T) {
 
 	// addKeyValue with an int64 Value
 	printAllocs("addKeyValue (int64)", testing.AllocsPerRun(100, func() {
-		enc.addKeyValue(AddInt("k", int64(42)))
+		enc.addKeyValue(AddInt64("k", int64(42)))
 		enc.reset()
 	}))
 
@@ -160,9 +191,19 @@ func TestJSONEncoderMethodAllocs(t *testing.T) {
 		enc.reset()
 	}))
 
-	// addStruct (nested struct — like MyStruct with MyInfo inside)
+	// addStruct (nested struct)
 	printAllocs("addStruct (nested)", testing.AllocsPerRun(100, func() {
-		enc.addStruct(MyStruct{Name: "Ayush", Age: 22, MyInfo: MyInfo{Gender: "Male"}})
+		enc.addStruct(Person{
+			Name: "Ayush",
+			Age:  22,
+			Contact: ContactInfo{
+				Email: "ayush@example.com",
+				Social: SocialMedia{
+					Twitter: "@ayush",
+					Stats:   SocialStats{Followers: 4200, Verified: false},
+				},
+			},
+		})
 		enc.reset()
 	}))
 
@@ -173,8 +214,31 @@ func TestJSONEncoderMethodAllocs(t *testing.T) {
 		KVs: []KV{
 			AddString("my-key", "my-value"),
 			AddString("my-key-2", "my-value-2"),
-			AddInt("my-int-key", 34),
-			AddStruct("my-struct-key", MyStruct{Name: "Ayush", Age: 22, MyInfo: MyInfo{Gender: "Male"}}),
+			AddInt64("my-int-key", 34),
+			AddStruct("person", Person{
+				Name: "Ayush",
+				Age:  22,
+				Contact: ContactInfo{
+					Email: "ayush@example.com",
+					Social: SocialMedia{
+						Twitter: "@ayush",
+						Stats:   SocialStats{Followers: 4200, Verified: false},
+					},
+				},
+				Employment: Employment{
+					Company: "Blinkit",
+					Role:    "Software Engineer",
+					Salary: Salary{
+						Total:    2500000,
+						Currency: "INR",
+						Breakdown: SalaryBreakdown{
+							Base:      2000000,
+							Bonus:     500000,
+							TaxRegion: TaxRegion{Code: "IN-KA", Rate: 0.30},
+						},
+					},
+				},
+			}),
 		},
 	}
 	fmt.Println()
@@ -209,7 +273,7 @@ func BenchmarkMyLogger10Fields(b *testing.B) {
 				AddString("field7", "value7"),
 				AddString("field8", "value8"),
 				AddString("field9", "value9"),
-				AddInt("field10", 42),
+				AddInt64("field10", 42),
 			},
 		}
 		jsonEncoder := _jsonPOOL.Get().(*JSONEncoder)
@@ -241,7 +305,7 @@ func BenchmarkMyLogger10FieldsCreatingOnce(b *testing.B) {
 			AddString("field7", "value7"),
 			AddString("field8", "value8"),
 			AddString("field9", "value9"),
-			AddInt("field10", 42),
+			AddInt64("field10", 42),
 		},
 	}
 
