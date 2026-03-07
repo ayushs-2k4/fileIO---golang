@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
+	"log"
 	"math"
 	"path"
 	"reflect"
@@ -146,6 +149,11 @@ func (j *JSONEncoder) addValue(v Value) {
 		j.addFloat(math.Float64frombits(uint64(v.Int)))
 	case StructType:
 		j.addStruct(v.Interface)
+	case ArrayMarshalType:
+		j.addArrayMarshal(v.Interface.(ArrayMarshal))
+	case ArrayType:
+		j.addArray(reflect.ValueOf(v.Interface))
+	case AnyType:
 	}
 }
 
@@ -170,6 +178,32 @@ func getLevelString(level Level) string {
 	}
 
 	return "N/A"
+}
+
+func (j *JSONEncoder) addAny(val any) {
+	b, err := json.Marshal(val)
+	if err != nil {
+		log.Fatal("Failed to marshal array, err", err)
+	}
+
+	j.b = append(j.b, b...)
+}
+
+func (j *JSONEncoder) addArrayMarshal(arr ArrayMarshal) {
+	var err error
+	j.b, err = arr.MarshalArray(j.b)
+	if err != nil {
+		log.Fatal("Failed to marshal array, err", err)
+	}
+}
+
+func (j *JSONEncoder) addArray(arr reflect.Value) {
+	b, err := json.Marshal(arr.Interface())
+	if err != nil {
+		log.Fatal("Failed to marshal array, err", err)
+	}
+
+	j.b = append(j.b, b...)
 }
 
 func (j *JSONEncoder) addString(str string) {
@@ -204,19 +238,7 @@ func (j *JSONEncoder) addStruct(value any) {
 		j.addNewLine()
 		j.addTabs()
 
-		switch fieldVal.Kind() {
-		case reflect.String:
-			j.addKeyValue(AddString(fieldTyp.Name, fieldVal.String()))
-
-		case reflect.Int, reflect.Int32, reflect.Int64:
-			j.addKeyValue(AddInt64(fieldTyp.Name, fieldVal.Int()))
-
-		case reflect.Float32, reflect.Float64:
-			j.addKeyValue(AddFloat64(fieldTyp.Name, fieldVal.Float()))
-
-		case reflect.Struct:
-			j.addKeyValue(AddStruct(fieldTyp.Name, fieldVal.Interface()))
-		}
+		j.addReflectionValue(fieldVal, fieldTyp)
 
 		if i < val.NumField()-1 {
 			j.addCharacter(CommaCharacter)
@@ -227,6 +249,33 @@ func (j *JSONEncoder) addStruct(value any) {
 	j.currentLevel--
 	j.addTabs()
 	j.addCharacter('}')
+}
+
+func (j *JSONEncoder) addReflectionValue(fieldVal reflect.Value, fieldTyp reflect.StructField) {
+	switch fieldVal.Kind() {
+	case reflect.String:
+		j.addKeyValue(AddString(fieldTyp.Name, fieldVal.String()))
+
+	case reflect.Int, reflect.Int32, reflect.Int64:
+		j.addKeyValue(AddInt64(fieldTyp.Name, fieldVal.Int()))
+
+	case reflect.Float32, reflect.Float64:
+		j.addKeyValue(AddFloat64(fieldTyp.Name, fieldVal.Float()))
+
+	case reflect.Struct:
+		j.addKeyValue(AddStruct(fieldTyp.Name, fieldVal.Interface()))
+
+	case reflect.Array, reflect.Slice:
+		if am, ok := fieldVal.Interface().(ArrayMarshal); ok {
+			j.addKeyValue(AddArrayMarshal(fieldTyp.Name, am))
+		} else {
+			j.addKeyValue(AddArray(fieldTyp.Name, fieldVal.Interface()))
+		}
+
+	default:
+		k := reflect.TypeOf(fieldVal)
+		fmt.Println(k)
+	}
 }
 
 func (j *JSONEncoder) reset() {

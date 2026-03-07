@@ -46,6 +46,9 @@ const (
 	Float32Type
 	Float64Type
 	StructType
+	ArrayMarshalType
+	ArrayType
+	AnyType
 )
 
 func AddString(key string, value string) KV {
@@ -116,6 +119,37 @@ func AddStruct(key string, value any) KV {
 			ValType:   StructType,
 		},
 	}
+}
+
+func AddArray(key string, value any) KV {
+	return KV{
+		Key: key,
+		Value: Value{
+			Interface: value,
+			ValType:   ArrayType,
+		},
+	}
+}
+
+type ArrayMarshal interface {
+	MarshalArray(b []byte) ([]byte, error)
+}
+
+func AddArrayMarshal(key string, value ArrayMarshal) KV {
+	return KV{
+		Key: key,
+		Value: Value{
+			Interface: value,
+			ValType:   ArrayMarshalType,
+		},
+	}
+}
+
+// WorkEntry represents a single previous job in a person's work history.
+type WorkEntry struct {
+	Company  string
+	Role     string
+	YearsExp int
 }
 
 func main() {
@@ -203,6 +237,10 @@ func main() {
 									},
 								},
 							},
+							WorkHistory: WorkHistory{ // implements ArrayMarshal
+								{Company: "Zomato", Role: "Backend Engineer", YearsExp: 1},
+								{Company: "magicpin", Role: "Junior Engineer", YearsExp: 1},
+							},
 						},
 					}),
 				},
@@ -247,12 +285,13 @@ type Address struct {
 }
 
 type Employment struct {
-	Company    string
-	Role       string
-	Experience int
-	Skills     []string
-	Manager    Manager
-	Salary     Salary
+	Company     string
+	Role        string
+	Experience  int
+	Skills      []string
+	Manager     Manager
+	Salary      Salary
+	WorkHistory WorkHistory
 }
 
 // Level 3
@@ -300,4 +339,26 @@ type SalaryBreakdown struct {
 type TaxRegion struct {
 	Code string
 	Rate float64
+}
+
+// WorkHistory is a slice of WorkEntry that implements ArrayMarshal,
+// writing a compact JSON array directly into the encoder buffer.
+type WorkHistory []WorkEntry
+
+func (w WorkHistory) MarshalArray(b []byte) ([]byte, error) {
+	b = append(b, '[')
+	for i, e := range w {
+		if i > 0 {
+			b = append(b, ',')
+		}
+		b = append(b, `{"company":"`...)
+		b = append(b, e.Company...)
+		b = append(b, `","role":"`...)
+		b = append(b, e.Role...)
+		b = append(b, `","years":`...)
+		b = strconv.AppendInt(b, int64(e.YearsExp), 10)
+		b = append(b, '}')
+	}
+	b = append(b, ']')
+	return b, nil
 }

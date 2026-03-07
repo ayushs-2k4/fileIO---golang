@@ -47,6 +47,10 @@ func BenchmarkEncoderWriter(b *testing.B) {
 							TaxRegion: TaxRegion{Code: "IN-KA", Rate: 0.30},
 						},
 					},
+					WorkHistory: WorkHistory{
+						{Company: "Zomato", Role: "Junior Engineer", YearsExp: 1},
+						{Company: "Swiggy", Role: "Backend Engineer", YearsExp: 2},
+					},
 				},
 			}),
 		},
@@ -236,6 +240,10 @@ func TestJSONEncoderMethodAllocs(t *testing.T) {
 							Bonus:     500000,
 							TaxRegion: TaxRegion{Code: "IN-KA", Rate: 0.30},
 						},
+					},
+					WorkHistory: WorkHistory{
+						{Company: "Zomato", Role: "Junior Engineer", YearsExp: 1},
+						{Company: "Swiggy", Role: "Backend Engineer", YearsExp: 2},
 					},
 				},
 			}),
