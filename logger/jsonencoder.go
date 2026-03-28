@@ -1,8 +1,7 @@
-package main
+package logger
 
 import (
 	"encoding/json"
-	"log"
 	"math"
 	"path"
 	"reflect"
@@ -15,6 +14,14 @@ import (
 var _jsonPOOL = sync.Pool{New: func() any {
 	return NewJSONEncoder()
 }}
+
+func GetJSONEncoder() *JSONEncoder {
+	return _jsonPOOL.Get().(*JSONEncoder)
+}
+
+func PutJSONEncoder(enc *JSONEncoder) {
+	_jsonPOOL.Put(enc)
+}
 
 type JSONEncoder struct {
 	currentLevel int
@@ -29,13 +36,13 @@ func NewJSONEncoder() *JSONEncoder {
 }
 
 const (
-	NewLineCharacter = '\n'
-	TabCharacter     = '\t'
-	CommaCharacter   = ','
-	MessageKey       = "message"
-	LevelKey         = "level"
-	TimeStampKey     = "timestamp"
-	CallerKey        = "caller"
+	newLineCharacter = '\n'
+	tabCharacter     = '\t'
+	commaCharacter   = ','
+	messageKey       = "message"
+	levelKey         = "level"
+	timeStampKey     = "timestamp"
+	callerKey        = "caller"
 )
 
 const (
@@ -48,10 +55,9 @@ func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
 	j.addNewLine()
 	j.currentLevel++
 	j.addTabs()
-	j.addKeyValue(AddString(MessageKey, rec.Message))
+	j.addKeyValue(AddString(messageKey, rec.Message))
 
 	j.addLevel(rec)
-
 	j.addTimestamp()
 
 	if shouldAddCallerInfo {
@@ -59,19 +65,10 @@ func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
 	}
 
 	for _, kv := range rec.KVs {
-		key := kv.Key
-		val := kv.Value
-
-		j.addCharacter(CommaCharacter)
+		j.addCharacter(commaCharacter)
 		j.addNewLine()
 		j.addTabs()
-
-		j.addKeyValue(KV{
-			Key:   key,
-			Value: val,
-		},
-		)
-
+		j.addKeyValue(kv)
 	}
 
 	j.addNewLine()
@@ -86,27 +83,27 @@ func (j *JSONEncoder) Encode(rec Record) ([]byte, error) {
 }
 
 func (j *JSONEncoder) addLevel(rec Record) {
-	j.addCharacter(CommaCharacter)
+	j.addCharacter(commaCharacter)
 	j.addNewLine()
 	j.addTabs()
-	j.addKeyValue(AddString(LevelKey, getLevelString(rec.Level)))
+	j.addKeyValue(AddString(levelKey, rec.Level.String()))
 }
 
 func (j *JSONEncoder) addTimestamp() {
-	j.addCharacter(CommaCharacter)
+	j.addCharacter(commaCharacter)
 	j.addNewLine()
 	j.addTabs()
-	j.addKey(TimeStampKey)
+	j.addKey(timeStampKey)
 	j.addCharacter('"')
 	j.b = time.Now().UTC().AppendFormat(j.b, time.RFC3339Nano)
 	j.addCharacter('"')
 }
 
 func (j *JSONEncoder) addCallerInfo() {
-	j.addCharacter(CommaCharacter)
+	j.addCharacter(commaCharacter)
 	j.addNewLine()
 	j.addTabs()
-	j.addKey(CallerKey)
+	j.addKey(callerKey)
 	j.addCharacter('"')
 	j.addRawCaller()
 	j.addCharacter('"')
@@ -114,14 +111,14 @@ func (j *JSONEncoder) addCallerInfo() {
 
 func (j *JSONEncoder) addNewLine() {
 	if shouldPrettify {
-		j.addCharacter(NewLineCharacter)
+		j.addCharacter(newLineCharacter)
 	}
 }
 
 func (j *JSONEncoder) addTabs() {
 	if shouldPrettify {
 		for i := 0; i < j.currentLevel; i++ {
-			j.addCharacter(TabCharacter)
+			j.addCharacter(tabCharacter)
 		}
 	}
 }
@@ -132,7 +129,6 @@ func (j *JSONEncoder) addCharacter(c rune) {
 
 func (j *JSONEncoder) addKeyValue(kv KV) {
 	j.addKey(kv.Key)
-
 	j.addValue(kv.Value)
 }
 
@@ -146,13 +142,14 @@ func (j *JSONEncoder) addValue(v Value) {
 		j.addFloat(float64(math.Float32frombits(uint32(v.Int))))
 	case Float64Type:
 		j.addFloat(math.Float64frombits(uint64(v.Int)))
+	case BoolType:
+		j.addBool(v.Int == 1)
 	case StructType:
 		j.addStruct(v.Interface)
 	case ArrayMarshalType:
 		j.addArrayMarshal(v.Interface.(ArrayMarshal))
 	case ArrayType:
 		j.addArray(reflect.ValueOf(v.Interface))
-	case AnyType:
 	}
 }
 
@@ -164,27 +161,11 @@ func (j *JSONEncoder) addKey(key string) {
 	}
 }
 
-func getLevelString(level Level) string {
-	switch level {
-	case Error:
-		return "ERROR"
-	case Warn:
-		return "WARN"
-	case Debug:
-		return "DEBUG"
-	case Info:
-		return "INFO"
-	}
-
-	return "N/A"
-}
-
 func (j *JSONEncoder) addAny(val any) {
 	b, err := json.Marshal(val)
 	if err != nil {
-		log.Fatal("Failed to marshal array, err", err)
+		panic("jsonencoder: failed to marshal value: " + err.Error())
 	}
-
 	j.b = append(j.b, b...)
 }
 
@@ -192,16 +173,15 @@ func (j *JSONEncoder) addArrayMarshal(arr ArrayMarshal) {
 	var err error
 	j.b, err = arr.MarshalArray(j.b)
 	if err != nil {
-		log.Fatal("Failed to marshal array, err", err)
+		panic("jsonencoder: failed to marshal array: " + err.Error())
 	}
 }
 
 func (j *JSONEncoder) addArray(arr reflect.Value) {
 	b, err := json.Marshal(arr.Interface())
 	if err != nil {
-		log.Fatal("Failed to marshal array, err", err)
+		panic("jsonencoder: failed to marshal array: " + err.Error())
 	}
-
 	j.b = append(j.b, b...)
 }
 
@@ -219,6 +199,14 @@ func (j *JSONEncoder) addFloat(val float64) {
 	j.b = strconv.AppendFloat(j.b, val, 'f', -1, 64)
 }
 
+func (j *JSONEncoder) addBool(val bool) {
+	if val {
+		j.b = append(j.b, "true"...)
+	} else {
+		j.b = append(j.b, "false"...)
+	}
+}
+
 func (j *JSONEncoder) addStruct(value any) {
 	val := reflect.ValueOf(value)
 	typ := reflect.TypeOf(value)
@@ -226,6 +214,9 @@ func (j *JSONEncoder) addStruct(value any) {
 	j.addCharacter('{')
 	j.currentLevel++
 
+	// Use comma-before pattern so trailing commas never appear,
+	// even if the last struct field(s) are unexported.
+	first := true
 	for i := 0; i < val.NumField(); i++ {
 		fieldVal := val.Field(i)
 		fieldTyp := typ.Field(i)
@@ -234,14 +225,14 @@ func (j *JSONEncoder) addStruct(value any) {
 			continue
 		}
 
+		if !first {
+			j.addCharacter(commaCharacter)
+		}
+		first = false
+
 		j.addNewLine()
 		j.addTabs()
-
 		j.addReflectionValue(fieldVal, fieldTyp)
-
-		if i < val.NumField()-1 {
-			j.addCharacter(CommaCharacter)
-		}
 	}
 
 	j.addNewLine()
@@ -254,25 +245,20 @@ func (j *JSONEncoder) addReflectionValue(fieldVal reflect.Value, fieldTyp reflec
 	switch fieldVal.Kind() {
 	case reflect.String:
 		j.addKeyValue(AddString(fieldTyp.Name, fieldVal.String()))
-
 	case reflect.Int, reflect.Int32, reflect.Int64:
 		j.addKeyValue(AddInt64(fieldTyp.Name, fieldVal.Int()))
-
 	case reflect.Float32, reflect.Float64:
 		j.addKeyValue(AddFloat64(fieldTyp.Name, fieldVal.Float()))
-
+	case reflect.Bool:
+		j.addKeyValue(AddBool(fieldTyp.Name, fieldVal.Bool()))
 	case reflect.Struct:
 		j.addKeyValue(AddStruct(fieldTyp.Name, fieldVal.Interface()))
-
 	case reflect.Array, reflect.Slice:
 		if am, ok := fieldVal.Interface().(ArrayMarshal); ok {
 			j.addKeyValue(AddArrayMarshal(fieldTyp.Name, am))
 		} else {
 			j.addKeyValue(AddArray(fieldTyp.Name, fieldVal.Interface()))
 		}
-
-	default:
-		//fmt.Println("not implemented for:", fieldVal.Kind())
 	}
 }
 
@@ -291,7 +277,6 @@ func (j *JSONEncoder) addRawCaller() {
 
 	fn := runtime.FuncForPC(pc)
 	funcName := "unknown"
-
 	if fn != nil {
 		funcName = path.Base(fn.Name())
 	}

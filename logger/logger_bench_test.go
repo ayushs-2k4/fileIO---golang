@@ -1,9 +1,10 @@
-package main
+package logger
 
 import (
 	"fileIO/writer"
 	"fmt"
 	"io"
+	"strconv"
 	"testing"
 	"time"
 
@@ -11,10 +12,118 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// ── Benchmark fixture types ───────────────────────────────────────────────────
+// Defined here so the logger package has no dependency on package main.
+
+type WorkEntry struct {
+	Company  string
+	Role     string
+	YearsExp int
+}
+
+// WorkHistory implements ArrayMarshal for zero-alloc JSON serialization.
+type WorkHistory []WorkEntry
+
+func (w WorkHistory) MarshalArray(b []byte) ([]byte, error) {
+	b = append(b, '[')
+	for i, e := range w {
+		if i > 0 {
+			b = append(b, ',')
+		}
+		b = append(b, `{"company":"`...)
+		b = append(b, e.Company...)
+		b = append(b, `","role":"`...)
+		b = append(b, e.Role...)
+		b = append(b, `","years":`...)
+		b = strconv.AppendInt(b, int64(e.YearsExp), 10)
+		b = append(b, '}')
+	}
+	b = append(b, ']')
+	return b, nil
+}
+
+type SocialStats struct {
+	Followers int64
+	Posts     int64
+	Verified  bool
+}
+
+type SocialMedia struct {
+	Twitter  string
+	LinkedIn string
+	Stats    SocialStats
+}
+
+type ContactInfo struct {
+	Email  string
+	Phone  string
+	Social SocialMedia
+}
+
+type Region struct {
+	State    string
+	TimeZone string
+}
+
+type Coordinates struct {
+	Latitude  float64
+	Longitude float64
+}
+
+type Address struct {
+	Street      string
+	City        string
+	Country     string
+	ZipCode     string
+	Region      Region
+	Coordinates Coordinates
+}
+
+type TaxRegion struct {
+	Code string
+	Rate float64
+}
+
+type SalaryBreakdown struct {
+	Base      float64
+	Bonus     float64
+	TaxRegion TaxRegion
+}
+
+type Salary struct {
+	Total     float64
+	Currency  string
+	Breakdown SalaryBreakdown
+}
+
+type Manager struct {
+	Name    string
+	Contact ContactInfo
+}
+
+type Employment struct {
+	Company     string
+	Role        string
+	Experience  int
+	Skills      []string
+	Manager     Manager
+	Salary      Salary
+	WorkHistory WorkHistory
+}
+
+type Person struct {
+	Name       string
+	Age        int64
+	Contact    ContactInfo
+	Address    Address
+	Employment Employment
+}
+
+// ── Benchmarks ────────────────────────────────────────────────────────────────
+
 func BenchmarkEncoderWriter(b *testing.B) {
 	b.ReportAllocs()
 	fileWriter := writer.NewFileWriter("bench.log")
-	//consoleWriter := writer.NewConsoleWriter()
 	multiWriter := writer.NewMultiWriter(fileWriter)
 
 	record := Record{
@@ -58,14 +167,11 @@ func BenchmarkEncoderWriter(b *testing.B) {
 
 	b.ResetTimer()
 
-	record.Message = "Ayush Singhal"
 	for i := 0; i < b.N; i++ {
-		jsonEncoder := _jsonPOOL.Get().(*JSONEncoder)
-		encodedData, _ := jsonEncoder.Encode(record)
-
+		enc := _jsonPOOL.Get().(*JSONEncoder)
+		encodedData, _ := enc.Encode(record)
 		multiWriter.Write(encodedData)
-
-		_jsonPOOL.Put(jsonEncoder)
+		_jsonPOOL.Put(enc)
 	}
 
 	b.StopTimer()
@@ -86,9 +192,9 @@ func BenchmarkEncoder(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		jsonEncoder := _jsonPOOL.Get().(*JSONEncoder)
-		jsonEncoder.Encode(rec) //nolint:errcheck
-		_jsonPOOL.Put(jsonEncoder)
+		enc := _jsonPOOL.Get().(*JSONEncoder)
+		enc.Encode(rec) //nolint:errcheck
+		_jsonPOOL.Put(enc)
 	}
 }
 
@@ -122,16 +228,14 @@ func BenchmarkFileWriter(b *testing.B) {
 		},
 	}
 
+	enc := _jsonPOOL.Get().(*JSONEncoder)
+	encodedData, _ := enc.Encode(record)
+	_jsonPOOL.Put(enc)
+
 	b.ResetTimer()
 
-	record.Message = "Ayush Singhal"
-	jsonEncoder := _jsonPOOL.Get().(*JSONEncoder)
-	encodedData, _ := jsonEncoder.Encode(record)
 	for i := 0; i < b.N; i++ {
-
 		fileWriter.Write(encodedData)
-
-		_jsonPOOL.Put(jsonEncoder)
 	}
 
 	b.StopTimer()
@@ -139,7 +243,7 @@ func BenchmarkFileWriter(b *testing.B) {
 }
 
 // TestJSONEncoderMethodAllocs measures allocs/op for each individual method of JSONEncoder.
-// Run with: go test -v -run TestJSONEncoderMethodAllocs
+// Run with: go test -v -run TestJSONEncoderMethodAllocs ./logger/
 func TestJSONEncoderMethodAllocs(t *testing.T) {
 	enc := NewJSONEncoder()
 
@@ -149,43 +253,36 @@ func TestJSONEncoderMethodAllocs(t *testing.T) {
 
 	fmt.Println("--- JSONEncoder method-level allocs/op ---")
 
-	// addString
 	printAllocs("addString", testing.AllocsPerRun(100, func() {
 		enc.addString("hello-world")
 		enc.reset()
 	}))
 
-	// addInt
 	printAllocs("addInt", testing.AllocsPerRun(100, func() {
 		enc.addInt(12345)
 		enc.reset()
 	}))
 
-	// addCaller  (runtime.Caller + string concat)
 	printAllocs("addRawCaller", testing.AllocsPerRun(100, func() {
 		enc.addRawCaller()
 		enc.reset()
 	}))
 
-	// time.Now().UTC().Format  (isolated — the timestamp line in Encode)
 	printAllocs("time.Now().UTC().AppendFormat(enc.b, time.RFC3339Nano)", testing.AllocsPerRun(100, func() {
 		enc.b = time.Now().UTC().AppendFormat(enc.b, time.RFC3339Nano)
 		enc.reset()
 	}))
 
-	// addKeyValue with a string Value
 	printAllocs("addKeyValue (string)", testing.AllocsPerRun(100, func() {
 		enc.addKeyValue(AddString("k", "v"))
 		enc.reset()
 	}))
 
-	// addKeyValue with an int64 Value
 	printAllocs("addKeyValue (int64)", testing.AllocsPerRun(100, func() {
 		enc.addKeyValue(AddInt64("k", int64(42)))
 		enc.reset()
 	}))
 
-	// addStruct (flat struct — no nested struct)
 	type FlatStruct struct {
 		Name string
 		Age  int64
@@ -195,7 +292,6 @@ func TestJSONEncoderMethodAllocs(t *testing.T) {
 		enc.reset()
 	}))
 
-	// addStruct (nested struct)
 	printAllocs("addStruct (nested)", testing.AllocsPerRun(100, func() {
 		enc.addStruct(Person{
 			Name: "Ayush",
@@ -211,7 +307,6 @@ func TestJSONEncoderMethodAllocs(t *testing.T) {
 		enc.reset()
 	}))
 
-	// Full Encode — with pool
 	rec := Record{
 		Message: "Ayush Singhal",
 		Level:   Warn,
@@ -263,7 +358,7 @@ func TestJSONEncoderMethodAllocs(t *testing.T) {
 
 func BenchmarkMyLogger10Fields(b *testing.B) {
 	b.ReportAllocs()
-	writer := &writer.DiscardWriter{}
+	w := &writer.DiscardWriter{}
 
 	b.ResetTimer()
 
@@ -284,21 +379,16 @@ func BenchmarkMyLogger10Fields(b *testing.B) {
 				AddInt64("field10", 42),
 			},
 		}
-		jsonEncoder := _jsonPOOL.Get().(*JSONEncoder)
-
-		data, _ := jsonEncoder.Encode(record)
-
-		writer.Write(data)
-
-		_jsonPOOL.Put(jsonEncoder)
+		enc := _jsonPOOL.Get().(*JSONEncoder)
+		data, _ := enc.Encode(record)
+		w.Write(data)
+		_jsonPOOL.Put(enc)
 	}
 }
 
 func BenchmarkMyLogger10FieldsCreatingOnce(b *testing.B) {
 	b.ReportAllocs()
-	writer := &writer.DiscardWriter{}
-
-	b.ResetTimer()
+	w := &writer.DiscardWriter{}
 
 	record := Record{
 		Message: "test message",
@@ -317,29 +407,21 @@ func BenchmarkMyLogger10FieldsCreatingOnce(b *testing.B) {
 		},
 	}
 
+	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
-		jsonEncoder := _jsonPOOL.Get().(*JSONEncoder)
-
-		data, _ := jsonEncoder.Encode(record)
-
-		writer.Write(data)
-
-		_jsonPOOL.Put(jsonEncoder)
+		enc := _jsonPOOL.Get().(*JSONEncoder)
+		data, _ := enc.Encode(record)
+		w.Write(data)
+		_jsonPOOL.Put(enc)
 	}
 }
 
 func BenchmarkZap10Fields(b *testing.B) {
 	b.ReportAllocs()
 	encoderCfg := zap.NewProductionEncoderConfig()
-
 	encoder := zapcore.NewJSONEncoder(encoderCfg)
-
-	core := zapcore.NewCore(
-		encoder,
-		zapcore.AddSync(io.Discard),
-		zap.InfoLevel,
-	)
-
+	core := zapcore.NewCore(encoder, zapcore.AddSync(io.Discard), zap.InfoLevel)
 	logger := zap.New(core)
 
 	b.ResetTimer()
@@ -363,15 +445,8 @@ func BenchmarkZap10Fields(b *testing.B) {
 func BenchmarkZap10FieldsCreatingOnce(b *testing.B) {
 	b.ReportAllocs()
 	encoderCfg := zap.NewProductionEncoderConfig()
-
 	encoder := zapcore.NewJSONEncoder(encoderCfg)
-
-	core := zapcore.NewCore(
-		encoder,
-		zapcore.AddSync(io.Discard),
-		zap.InfoLevel,
-	)
-
+	core := zapcore.NewCore(encoder, zapcore.AddSync(io.Discard), zap.InfoLevel)
 	logger := zap.New(core)
 
 	fields := []zap.Field{
